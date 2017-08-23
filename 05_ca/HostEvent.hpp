@@ -13,8 +13,11 @@
 //   limitations under the License.
 #pragma once
 
+#include <hpx/include/serialization.hpp>
+
 #include <vector>
-#include "GPUHitsAndDoublets.h"
+
+#include "HostHitsAndDoublets.hpp"
 
 struct HostEvent
 {
@@ -23,19 +26,14 @@ struct HostEvent
     std::vector<HostLayerHits> hitsLayers;
     std::vector<HostLayerDoublets> doublets;
 
-};
-
-
-struct GPUEvent
-{
-    unsigned int eventId;
-    unsigned int numberOfRootLayerPairs;
-    unsigned int numberOfLayers;
-    unsigned int numberOfLayerPairs;
-
+    template<typename Archive>
+    void serialize(Archive& ar, unsigned int version)
+    {
+        ar & eventId & rootLayers & hitsLayers & doublets;
+    }
 };
 
 struct Region
 {
-        float ptmin, region_origin_x, region_origin_y , region_origin_radius;
+    float ptmin, region_origin_x, region_origin_y , region_origin_radius;
 };

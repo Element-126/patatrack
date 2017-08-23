@@ -20,7 +20,7 @@
 #include <fstream>
 #include <vector>
 #include <sstream>
-#include "Event.h"
+#include "HostEvent.hpp"
 
 void parseinputFile(std::string inputFile, std::vector<HostEvent>& OutputEvents, Region& region,
         unsigned int maxEvents, unsigned int& maxNumberOfHits, unsigned int& maxNumberOfDoublets )
