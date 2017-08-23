@@ -23,29 +23,12 @@ struct GPULayerHits
         float * z;
 };
 
-struct HostLayerHits
-{
-        unsigned int layerId;
-        size_t size;
-        std::vector<float> x;
-        std::vector<float> y;
-        std::vector<float> z;
-};
-
 struct GPULayerDoublets
 {
         size_t size;
         unsigned int innerLayerId;
         unsigned int outerLayerId;
         unsigned int * indices;
-};
-
-struct HostLayerDoublets
-{
-        size_t size;
-        unsigned int innerLayerId;
-        unsigned int outerLayerId;
-        std::vector<unsigned int> indices;
 };
 
 #endif // not defined RecoPixelVertexing_PixelTriplets_GPUHitsAndDoublets_h
