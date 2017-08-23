@@ -15,25 +15,13 @@
 
 #include <hpx/include/serialization.hpp>
 
-#include <vector>
-
-#include "HostHitsAndDoublets.hpp"
-
-struct HostEvent
+struct Region
 {
-    unsigned int eventId;
-    std::vector<int> rootLayers;
-    std::vector<HostLayerHits> hitsLayers;
-    std::vector<HostLayerDoublets> doublets;
+    float ptmin, region_origin_x, region_origin_y , region_origin_radius;
 
     template<typename Archive>
     void serialize(Archive& ar, unsigned int version)
     {
-        ar & eventId & rootLayers & hitsLayers & doublets;
+        ar & ptmin & region_origin_x & region_origin_y & region_origin_radius;
     }
-};
-
-struct Region
-{
-    float ptmin, region_origin_x, region_origin_y , region_origin_radius;
 };

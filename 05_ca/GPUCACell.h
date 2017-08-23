@@ -17,7 +17,7 @@
 #ifndef GPU_CACELL_H_
 #define GPU_CACELL_H_
 
-#include "GPUHitsAndDoublets.h"
+#include "HitsAndDoublets/GPUHitsAndDoublets.h"
 #include "GPUSimpleVector.h"
 struct Quadruplet
 {
