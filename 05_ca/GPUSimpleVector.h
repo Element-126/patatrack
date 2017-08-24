@@ -15,74 +15,79 @@
 #ifndef GPU_SIMPLEVECTOR_H_
 #define GPU_SIMPLEVECTOR_H_
 
-template<int maxSize, class T>
-struct GPUSimpleVector
+namespace GPU
 {
-	__inline__
-    __host__ __device__
-	int push_back(const T& element)
+	template<int maxSize, class T>
+	struct SimpleVector
 	{
-
-		auto previousSize = m_size;
-		m_size++;
-		if(previousSize<maxSize)
+		__inline__
+		  __host__ __device__
+		int push_back(const T& element)
 		{
-			m_data[previousSize] = element;
-			return previousSize;
+
+			auto previousSize = m_size;
+			m_size++;
+			if(previousSize<maxSize)
+			{
+				m_data[previousSize] = element;
+				return previousSize;
+			}
+			else
+			{
+				--m_size;
+				return -1;
+			}
 		}
-		else
+
+#if defined(__NVCC__) || defined(__CUDACC__)
+		__device__
+		int push_back_ts(const T& element)
 		{
-			--m_size;
-			return -1;
+			auto previousSize = atomicAdd(&m_size, 1);
+			if(previousSize<maxSize)
+			{
+				m_data[previousSize] = element;
+				return previousSize;
+			}
+			else
+			{
+				atomicSub(&m_size, 1);
+				return -1;
+			}
 		}
-	}
+#endif
 
-	__device__
-	int push_back_ts(const T& element)
-	{
-		auto previousSize = atomicAdd(&m_size, 1);
-		if(previousSize<maxSize)
+		__inline__
+		  __host__ __device__
+		T pop_back()
 		{
-			m_data[previousSize] = element;
-			return previousSize;
+			if(m_size > 0)
+			{
+				auto previousSize = m_size--;
+				return m_data[previousSize-1];
+			}
+			else
+			return T();
 		}
-		else
+
+		__inline__   __host__   __device__
+		void reset()
 		{
-			atomicSub(&m_size, 1);
-			return -1;
+			m_size = 0;
 		}
-	}
 
-	__inline__
-    __host__ __device__
-	T pop_back()
-	{
-		if(m_size > 0)
+
+		__inline__   __host__   __device__
+		int size() const
 		{
-			auto previousSize = m_size--;
-			return m_data[previousSize-1];
+			return m_size;
 		}
-		else
-		return T();
-	}
 
-	__inline__   __host__   __device__
-	void reset()
-	{
-		m_size = 0;
-	}
+		int m_size;
 
+		T m_data[maxSize];
 
-	__inline__   __host__   __device__
-	int size() const
-	{
-		return m_size;
-	}
-
-	int m_size;
-
-	T m_data[maxSize];
-
-};
+	};
+}
 
 #endif
