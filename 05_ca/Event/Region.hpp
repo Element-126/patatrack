@@ -15,13 +15,16 @@
 
 #include <hpx/include/serialization.hpp>
 
-struct Region
+namespace Host
 {
-    float ptmin, region_origin_x, region_origin_y , region_origin_radius;
-
-    template<typename Archive>
-    void serialize(Archive& ar, unsigned int version)
+    struct Region
     {
-        ar & ptmin & region_origin_x & region_origin_y & region_origin_radius;
-    }
-};
+        float ptmin, region_origin_x, region_origin_y , region_origin_radius;
+
+        template<typename Archive>
+        void serialize(Archive& ar, unsigned int version)
+        {
+            ar & ptmin & region_origin_x & region_origin_y & region_origin_radius;
+        }
+    };
+}

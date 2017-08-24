@@ -18,33 +18,36 @@
 
 #include <vector>
 
-struct HostLayerHits
+namespace Host
 {
-    unsigned int layerId;
-    size_t size;
-    std::vector<float> x;
-    std::vector<float> y;
-    std::vector<float> z;
-
-    template<typename Archive>
-    void serialize(Archive& ar, unsigned int version)
+    struct LayerHits
     {
-        ar & layerId & size & x & y & z;
-    }
-};
+        unsigned int layerId;
+        size_t size;
+        std::vector<float> x;
+        std::vector<float> y;
+        std::vector<float> z;
 
-struct HostLayerDoublets
-{
-    size_t size;
-    unsigned int innerLayerId;
-    unsigned int outerLayerId;
-    std::vector<unsigned int> indices;
+        template<typename Archive>
+        void serialize(Archive& ar, unsigned int version)
+        {
+            ar & layerId & size & x & y & z;
+        }
+    };
 
-    template<typename Archive>
-    void serialize(Archive& ar, unsigned int version)
+    struct LayerDoublets
     {
-        ar & size & innerLayerId & outerLayerId & indices;
-    }
-};
+        size_t size;
+        unsigned int innerLayerId;
+        unsigned int outerLayerId;
+        std::vector<unsigned int> indices;
+
+        template<typename Archive>
+        void serialize(Archive& ar, unsigned int version)
+        {
+            ar & size & innerLayerId & outerLayerId & indices;
+        }
+    };
+}
 
 #endif // RecoPixelVertexing_PixelTriplets_HostHitsAndDoublets_h

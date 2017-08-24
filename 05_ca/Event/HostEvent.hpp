@@ -19,16 +19,19 @@
 
 #include "HitsAndDoublets/HostHitsAndDoublets.hpp"
 
-struct HostEvent
+namespace Host
 {
-    unsigned int eventId;
-    std::vector<int> rootLayers;
-    std::vector<HostLayerHits> hitsLayers;
-    std::vector<HostLayerDoublets> doublets;
-
-    template<typename Archive>
-    void serialize(Archive& ar, unsigned int version)
+    struct Event
     {
-        ar & eventId & rootLayers & hitsLayers & doublets;
-    }
-};
+        unsigned int eventId;
+        std::vector<int> rootLayers;
+        std::vector<Host::LayerHits> hitsLayers;
+        std::vector<Host::LayerDoublets> doublets;
+
+        template<typename Archive>
+        void serialize(Archive& ar, unsigned int version)
+        {
+            ar & eventId & rootLayers & hitsLayers & doublets;
+        }
+    };
+}

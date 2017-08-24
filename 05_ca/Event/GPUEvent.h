@@ -14,10 +14,13 @@
 //   limitations under the License.
 #pragma once
 
-struct GPUEvent
+namespace GPU
 {
-    unsigned int eventId;
-    unsigned int numberOfRootLayerPairs;
-    unsigned int numberOfLayers;
-    unsigned int numberOfLayerPairs;
-};
+    struct Event
+    {
+        unsigned int eventId;
+        unsigned int numberOfRootLayerPairs;
+        unsigned int numberOfLayers;
+        unsigned int numberOfLayerPairs;
+    };
+}

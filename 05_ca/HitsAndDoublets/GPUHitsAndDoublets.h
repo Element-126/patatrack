@@ -14,21 +14,24 @@
 #ifndef RecoPixelVertexing_PixelTriplets_GPUHitsAndDoublets_h
 #define RecoPixelVertexing_PixelTriplets_GPUHitsAndDoublets_h
 
-struct GPULayerHits
+namespace GPU
 {
+    struct LayerHits
+    {
         unsigned int layerId;
         size_t size;
         float * x;
         float * y;
         float * z;
-};
+    };
 
-struct GPULayerDoublets
-{
+    struct LayerDoublets
+    {
         size_t size;
         unsigned int innerLayerId;
         unsigned int outerLayerId;
         unsigned int * indices;
-};
+    };
+}
 
 #endif // not defined RecoPixelVertexing_PixelTriplets_GPUHitsAndDoublets_h
