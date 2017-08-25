@@ -12,6 +12,9 @@ namespace Host
         unsigned int layerPairs;
         unsigned int rootLayerPairs;
 
+        // [FIXME] Needed by HPX
+        MaxHitsAndLayers() = default;
+
         MaxHitsAndLayers(
             unsigned int maxNumberOfHits,
             unsigned int maxNumberOfDoublets,

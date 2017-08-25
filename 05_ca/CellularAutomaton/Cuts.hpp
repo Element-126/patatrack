@@ -10,6 +10,9 @@ namespace Host
         float phi;
         float hardPt;
 
+        // [FIXME] Needed by HPX
+        Cuts() = default;
+
         Cuts(
             float thetaCut,
             float phiCut,
