@@ -18,7 +18,7 @@
 #define GPU_CACELL_H_
 
 #include "HitsAndDoublets/GPUHitsAndDoublets.h"
-#include "GPUSimpleVector.h"
+#include "GPUSimpleVector.hpp"
 #include "CellularAutomaton/GPUQuadruplet.hpp"
 
 namespace GPU
@@ -263,8 +263,8 @@ namespace GPU
             __device__
             inline
             void find_ntuplets(const CACell * cells,
-                    GPUSimpleVector<maxNumberOfQuadruplets,GPU::Quadruplet>* foundNtuplets,
-                    GPUSimpleVector<3, unsigned int>& tmpNtuplet,
+                    GPU::SimpleVector<maxNumberOfQuadruplets,GPU::Quadruplet>* foundNtuplets,
+                    GPU::SimpleVector<3, unsigned int>& tmpNtuplet,
                     const unsigned int minHitsPerNtuplet
             ) const
             {
@@ -322,8 +322,8 @@ namespace GPU
              __host__
              inline
              void find_ntuplets_host(const CACell * cells,
-                     GPUSimpleVector<maxNumberOfQuadruplets,GPU::Quadruplet>* foundNtuplets,
-                     GPUSimpleVector<3, unsigned int>& tmpNtuplet,
+                     GPU::SimpleVector<maxNumberOfQuadruplets,GPU::Quadruplet>* foundNtuplets,
+                     GPU::SimpleVector<3, unsigned int>& tmpNtuplet,
                      const unsigned int minHitsPerNtuplet
              ) const
              {
@@ -373,7 +373,7 @@ namespace GPU
 
                  }
              }
-            GPUSimpleVector<40, unsigned int> theOuterNeighbors;
+            GPU::SimpleVector<40, unsigned int> theOuterNeighbors;
 
             int theDoubletId;
             int theLayerPairId;
