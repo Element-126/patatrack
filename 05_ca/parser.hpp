@@ -21,9 +21,10 @@
 #include <vector>
 #include <sstream>
 #include "Event/HostEvent.hpp"
-#include "Event/Region.hpp"
+#include "Event/HostRegion.hpp"
+#include "HitsAndDoublets/HostHitsAndDoublets.hpp"
 
-void parseinputFile(std::string inputFile, std::vector<HostEvent>& OutputEvents, Region& region,
+void parseinputFile(std::string inputFile, std::vector<Host::Event>& OutputEvents, Host::Region& region,
         unsigned int maxEvents, unsigned int& maxNumberOfHits, unsigned int& maxNumberOfDoublets )
 {
 
@@ -34,7 +35,7 @@ void parseinputFile(std::string inputFile, std::vector<HostEvent>& OutputEvents,
         std::cout << "could not open txt file " << inputFile << std::endl;
         exit(1);
     }
-    HostEvent tmpEvent;
+    Host::Event tmpEvent;
 
 
 
@@ -76,7 +77,7 @@ void parseinputFile(std::string inputFile, std::vector<HostEvent>& OutputEvents,
         else if (title.compare("Layer") == 0)
         {
             auto& event = OutputEvents.back();
-            HostLayerHits tmpLayerHits;
+            Host::LayerHits tmpLayerHits;
             ss >> tmpLayerHits.layerId;
             event.hitsLayers.push_back(tmpLayerHits);
 
@@ -134,7 +135,7 @@ void parseinputFile(std::string inputFile, std::vector<HostEvent>& OutputEvents,
         else if (title.compare("LayerPairId") == 0)
         {
             auto& event = OutputEvents.back();
-            HostLayerDoublets tmpHostLayerDoublets;
+            Host::LayerDoublets tmpHostLayerDoublets;
             event.doublets.push_back(tmpHostLayerDoublets);
         }
         else if (title.compare("InnerLayerId") == 0)
