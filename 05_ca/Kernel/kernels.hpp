@@ -13,6 +13,13 @@
 //   limitations under the License.
 #pragma once
 
+#include "Event/GPUEvent.h"
+#include "Event/GPURegion.h"
+#include "HitsAndDoublets/GPUHitsAndDoublets.h"
+#include "CellularAutomaton/GPUCACell.hpp"
+#include "CellularAutomaton/GPUQuadruplet.hpp"
+#include "GPUSimpleVector.hpp"
+
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
@@ -24,8 +31,8 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 __global__
-void debug_input_data(const GPUEvent* event, const GPULayerDoublets* gpuDoublets,
-        const GPULayerHits* gpuHitsOnLayers, const Region* region, unsigned int maxNumberOfHits)
+void debug_input_data(const GPU::Event* event, const GPU::LayerDoublets* gpuDoublets,
+        const GPU::LayerHits* gpuHitsOnLayers, const GPU::Region* region, unsigned int maxNumberOfHits)
 {
     float ptmin, region_origin_x, region_origin_y, region_origin_radius;
 
@@ -72,9 +79,10 @@ void debug_input_data(const GPUEvent* event, const GPULayerDoublets* gpuDoublets
 
 template<int maxNumberOfQuadruplets>
 __global__
-void kernel_create(const GPUEvent* event, const GPULayerDoublets* gpuDoublets,
-        const GPULayerHits* gpuHitsOnLayers, GPUCACell* cells, GPUSimpleVector<100, unsigned int> * isOuterHitOfCell,
-        GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>* foundNtuplets, const Region* region,
+void kernel_create(const GPU::Event* event, const GPU::LayerDoublets* gpuDoublets,
+        const GPU::LayerHits* gpuHitsOnLayers, GPU::CACell* cells,
+        GPU::SimpleVector<100, unsigned int> * isOuterHitOfCell,
+        GPU::SimpleVector<maxNumberOfQuadruplets, GPU::Quadruplet>* foundNtuplets, const GPU::Region* region,
         unsigned int maxNumberOfDoublets, unsigned int maxNumberOfHits)
 {
 
@@ -108,9 +116,10 @@ void kernel_create(const GPUEvent* event, const GPULayerDoublets* gpuDoublets,
 
 template<int maxNumberOfQuadruplets>
 __global__
-void kernel_debug(const GPUEvent* event, const GPULayerDoublets* gpuDoublets,
-        const GPULayerHits* gpuHitsOnLayers, GPUCACell* cells, GPUSimpleVector<100, unsigned int> * isOuterHitOfCell,
-        GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>* foundNtuplets,const Region* region,
+void kernel_debug(const GPU::Event* event, const GPU::LayerDoublets* gpuDoublets,
+        const GPU::LayerHits* gpuHitsOnLayers, GPU::CACell* cells,
+        GPU::SimpleVector<100, unsigned int> * isOuterHitOfCell,
+        GPU::SimpleVector<maxNumberOfQuadruplets, GPU::Quadruplet>* foundNtuplets,const GPU::Region* region,
         const float thetaCut, const float phiCut, const float hardPtCut,
         unsigned int maxNumberOfDoublets, unsigned int maxNumberOfHits)
 {
@@ -235,8 +244,8 @@ void kernel_debug(const GPUEvent* event, const GPULayerDoublets* gpuDoublets,
 }
 
 __global__
-void kernel_connect(const GPUEvent* event, const GPULayerDoublets* gpuDoublets, GPUCACell* cells,
-        GPUSimpleVector<100, unsigned int> * isOuterHitOfCell, const Region* region,
+void kernel_connect(const GPU::Event* event, const GPU::LayerDoublets* gpuDoublets, GPU::CACell* cells,
+        GPU::SimpleVector<100, unsigned int> * isOuterHitOfCell, const GPU::Region* region,
         const float thetaCut, const float phiCut, const float hardPtCut,
         unsigned int maxNumberOfDoublets, unsigned int maxNumberOfHits)
 {
@@ -282,9 +291,9 @@ void kernel_connect(const GPUEvent* event, const GPULayerDoublets* gpuDoublets, 
 }
 
 __global__
-void kernel_debug_connect(const GPUEvent* event, const GPULayerDoublets* gpuDoublets,
-        GPUCACell* cells, GPUSimpleVector<100, unsigned int> * isOuterHitOfCell,
-        const Region* region, unsigned int maxNumberOfDoublets, unsigned int maxNumberOfHits)
+void kernel_debug_connect(const GPU::Event* event, const GPU::LayerDoublets* gpuDoublets,
+        GPU::CACell* cells, GPU::SimpleVector<100, unsigned int> * isOuterHitOfCell,
+        const GPU::Region* region, unsigned int maxNumberOfDoublets, unsigned int maxNumberOfHits)
 {
     unsigned int numberOfLayerPairs = event->numberOfLayerPairs;
 //    float ptmin, region_origin_x, region_origin_y , region_origin_radius;
@@ -317,10 +326,10 @@ void kernel_debug_connect(const GPUEvent* event, const GPULayerDoublets* gpuDoub
 
 template<int maxNumberOfQuadruplets>
 __global__
-void kernel_find_ntuplets(const GPUEvent* event,
-        const GPULayerDoublets* gpuDoublets,
-        GPUCACell* cells,
-        GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>* foundNtuplets,
+void kernel_find_ntuplets(const GPU::Event* event,
+        const GPU::LayerDoublets* gpuDoublets,
+        GPU::CACell* cells,
+        GPU::SimpleVector<maxNumberOfQuadruplets, GPU::Quadruplet>* foundNtuplets,
         unsigned int* rootLayerPairs,
         unsigned int minHitsPerNtuplet, unsigned int maxNumberOfDoublets)
 {
@@ -332,7 +341,7 @@ void kernel_find_ntuplets(const GPUEvent* event,
         unsigned int rootLayerPairIndex = rootLayerPairs[blockIdx.y];
         auto globalFirstDoubletIdx = rootLayerPairIndex*maxNumberOfDoublets;
 
-        GPUSimpleVector<3, unsigned int> stack;
+        GPU::SimpleVector<3, unsigned int> stack;
         for (int i = cellIndexInRootLayerPair; i < gpuDoublets[rootLayerPairIndex].size;
                 i += gridDim.x * blockDim.x)
         {
@@ -349,10 +358,10 @@ void kernel_find_ntuplets(const GPUEvent* event,
 
 template<int maxNumberOfQuadruplets>
 __global__
-void kernel_debug_find_ntuplets(const GPUEvent* event,
-        const GPULayerDoublets* gpuDoublets,
-        GPUCACell* cells,
-        GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>* foundNtuplets,
+void kernel_debug_find_ntuplets(const GPU::Event* event,
+        const GPU::LayerDoublets* gpuDoublets,
+        GPU::CACell* cells,
+        GPU::SimpleVector<maxNumberOfQuadruplets, GPU::Quadruplet>* foundNtuplets,
         unsigned int* rootLayerPairs,
         unsigned int minHitsPerNtuplet, unsigned int maxNumberOfDoublets)
 {
@@ -363,7 +372,7 @@ void kernel_debug_find_ntuplets(const GPUEvent* event,
         unsigned int rootLayerPairIndex = rootLayerPairs[rootLayerPair];
         auto globalFirstDoubletIdx = rootLayerPairIndex*maxNumberOfDoublets;
 
-        GPUSimpleVector<3, unsigned int> stack;
+        GPU::SimpleVector<3, unsigned int> stack;
         for (int i =0; i < gpuDoublets[rootLayerPairIndex].size; i++)
         {
             auto globalCellIdx = i+globalFirstDoubletIdx;
