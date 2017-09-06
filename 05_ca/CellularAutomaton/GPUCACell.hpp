@@ -18,7 +18,8 @@
 #define GPU_CACELL_H_
 
 #include "HitsAndDoublets/GPUHitsAndDoublets.h"
-#include "GPUSimpleVector.hpp"
+#include "Vector/GPUSimpleVector.hpp"
+#include "Vector/GPUStaticVector.hpp"
 #include "CellularAutomaton/GPUQuadruplet.hpp"
 
 namespace GPU
@@ -259,12 +260,12 @@ namespace GPU
             // trying to free the track building process from hardcoded layers, leaving the visit of the graph
             // based on the neighborhood connections between cells.
 
-            template<int maxNumberOfQuadruplets>
-            __device__
-            inline
+#if defined(__NVCC__) || defined(__CUDACC__)
+            template<int N>
+            __device__ inline
             void find_ntuplets(const CACell * cells,
-                    GPU::SimpleVector<maxNumberOfQuadruplets,GPU::Quadruplet>* foundNtuplets,
-                    GPU::SimpleVector<3, unsigned int>& tmpNtuplet,
+                    GPU::SimpleVector<GPU::Quadruplet>* foundNtuplets,
+                    GPU::StaticVector<N, unsigned int>& tmpNtuplet,
                     const unsigned int minHitsPerNtuplet
             ) const
             {
@@ -315,15 +316,13 @@ namespace GPU
 
                 }
             }
+#endif // defined(__NVCC__) || defined(__CUDACC__)
 
-
-
-            template<int maxNumberOfQuadruplets>
-             __host__
-             inline
+             template<int N>
+             __host__ inline
              void find_ntuplets_host(const CACell * cells,
-                     GPU::SimpleVector<maxNumberOfQuadruplets,GPU::Quadruplet>* foundNtuplets,
-                     GPU::SimpleVector<3, unsigned int>& tmpNtuplet,
+                     GPU::SimpleVector<GPU::Quadruplet>* foundNtuplets,
+                     GPU::StaticVector<N, unsigned int>& tmpNtuplet,
                      const unsigned int minHitsPerNtuplet
              ) const
              {
@@ -333,7 +332,7 @@ namespace GPU
                  // it has no compatible neighbor
                  // the ntuplets is then saved if the number of hits it contains is greater than a threshold
                  GPU::Quadruplet tmpQuadruplet;
-                 if (tmpNtuplet.size() >= minHitsPerNtuplet - 1)
+                 if (tmpNtuplet.size() >= static_cast<int>(minHitsPerNtuplet) - 1)
                  {
     //                 if(tmpNtuplet.size()==3)
     //                 {
@@ -347,7 +346,7 @@ namespace GPU
     //                     }
     //                 }
 
-                     for(int i = 0; i<minHitsPerNtuplet - 1; ++i)
+                     for(int i = 0; i < static_cast<int>(minHitsPerNtuplet) - 1; ++i)
                      {
                          tmpQuadruplet.layerPairsAndCellId[i].x = cells[tmpNtuplet.m_data[i]].theLayerPairId;
                          tmpQuadruplet.layerPairsAndCellId[i].y = tmpNtuplet.m_data[i];
@@ -373,7 +372,9 @@ namespace GPU
 
                  }
              }
-            GPU::SimpleVector<40, unsigned int> theOuterNeighbors;
+
+            static constexpr unsigned int maxNumberOfOuterNeighbors = 40;
+            GPU::StaticVector<maxNumberOfOuterNeighbors, unsigned int> theOuterNeighbors;
 
             int theDoubletId;
             int theLayerPairId;
