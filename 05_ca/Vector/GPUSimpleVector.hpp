@@ -12,14 +12,22 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 
-#ifndef GPU_SIMPLEVECTOR_H_
-#define GPU_SIMPLEVECTOR_H_
+#ifndef GPU_SIMPLEVECTOR_HPP_
+#define GPU_SIMPLEVECTOR_HPP_
 
 namespace GPU
 {
-	template<int maxSize, class T>
+	template<class T>
 	struct SimpleVector
 	{
+    // Constructors
+    __host__ __device__
+    SimpleVector(unsigned int maxSize, T *m_data = nullptr)
+        : m_size(0), m_data(m_data), maxSize(maxSize) {}
+
+    __host__ __device__
+    SimpleVector() : SimpleVector(0) {}
+
 		__inline__
 		  __host__ __device__
 		int push_back(const T& element)
@@ -27,7 +35,7 @@ namespace GPU
 
 			auto previousSize = m_size;
 			m_size++;
-			if(previousSize<maxSize)
+			if(static_cast<unsigned int>(previousSize) < maxSize)
 			{
 				m_data[previousSize] = element;
 				return previousSize;
@@ -85,7 +93,9 @@ namespace GPU
 
 		int m_size;
 
-		T m_data[maxSize];
+		T *m_data;
+
+    unsigned int maxSize;
 
 	};
 }
