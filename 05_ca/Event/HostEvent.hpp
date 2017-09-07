@@ -17,7 +17,7 @@
 
 #include <vector>
 
-#include "HitsAndDoublets/HostHitsAndDoublets.hpp"
+#include "../HitsAndDoublets/HostHitsAndDoublets.hpp"
 
 namespace Host
 {

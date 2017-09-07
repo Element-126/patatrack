@@ -17,10 +17,10 @@
 #ifndef GPU_CACELL_H_
 #define GPU_CACELL_H_
 
-#include "HitsAndDoublets/GPUHitsAndDoublets.h"
-#include "Vector/GPUSimpleVector.hpp"
-#include "Vector/GPUStaticVector.hpp"
-#include "CellularAutomaton/GPUQuadruplet.hpp"
+#include "../HitsAndDoublets/GPUHitsAndDoublets.h"
+#include "../Vector/GPUSimpleVector.hpp"
+#include "../Vector/GPUStaticVector.hpp"
+#include "GPUQuadruplet.hpp"
 
 namespace GPU
 {

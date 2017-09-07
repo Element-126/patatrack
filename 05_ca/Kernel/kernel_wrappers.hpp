@@ -9,12 +9,12 @@
 
 #include <array>
 
-#include "Event/GPUEvent.h"
-#include "Event/GPURegion.h"
-#include "HitsAndDoublets/GPUHitsAndDoublets.h"
-#include "CellularAutomaton/GPUCACell.hpp"
-#include "CellularAutomaton/GPUQuadruplet.hpp"
-#include "Vector/GPUSimpleVector.hpp"
+#include "../Event/GPUEvent.h"
+#include "../Event/GPURegion.h"
+#include "../HitsAndDoublets/GPUHitsAndDoublets.h"
+#include "../CellularAutomaton/GPUCACell.hpp"
+#include "../CellularAutomaton/GPUQuadruplet.hpp"
+#include "../Vector/GPUSimpleVector.hpp"
 
 namespace kernel
 {

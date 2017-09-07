@@ -13,13 +13,13 @@
 //   limitations under the License.
 #pragma once
 
-#include "Event/GPUEvent.h"
-#include "Event/GPURegion.h"
-#include "HitsAndDoublets/GPUHitsAndDoublets.h"
-#include "CellularAutomaton/GPUCACell.hpp"
-#include "CellularAutomaton/GPUQuadruplet.hpp"
-#include "Vector/GPUSimpleVector.hpp"
-#include "Vector/GPUStaticVector.hpp"
+#include "../Event/GPUEvent.h"
+#include "../Event/GPURegion.h"
+#include "../HitsAndDoublets/GPUHitsAndDoublets.h"
+#include "../CellularAutomaton/GPUCACell.hpp"
+#include "../CellularAutomaton/GPUQuadruplet.hpp"
+#include "../Vector/GPUSimpleVector.hpp"
+#include "../Vector/GPUStaticVector.hpp"
 
 #define gpuErrchk(ans) { detail::gpuAssert((ans), __FILE__, __LINE__); }
 
