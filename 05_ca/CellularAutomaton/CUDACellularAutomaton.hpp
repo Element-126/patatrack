@@ -1,6 +1,5 @@
 #pragma once
 
-#include <hpx/lcos/channel.hpp>
 #include <hpx/lcos/local/channel.hpp>
 
 #include <cuda.h>
@@ -63,13 +62,13 @@ private:
     // CUDA streams
     const unsigned int nStreams;
     std::vector<cudaStream_t> streams;
-    hpx::lcos::channel<unsigned int> streamQueue;
+    hpx::lcos::local::channel<unsigned int> streamQueue;
     // Data member passed to callbacks, used to identify calling stream
     std::vector<std::tuple<CUDACellularAutomaton*, unsigned int, unsigned int>> streamInfo;
 
     // Work queue, preallocated on the host
     const unsigned int eventQueueSize;
-    hpx::lcos::channel<unsigned int> resourceQueue;
+    hpx::lcos::local::channel<unsigned int> resourceQueue;
 
     // Vector of one-element channels (one per CUDA stream) set by the CUDA
     // callback to notify the corresponding suspended HPX thread when

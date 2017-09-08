@@ -7,9 +7,6 @@
 
 #include "../Kernel/kernel_wrappers.hpp"
 
-using uint = unsigned int;
-HPX_REGISTER_CHANNEL(uint);
-
 HPX_REGISTER_COMPONENT_MODULE();
 
 using CUDACellularAutomaton_type = hpx::components::simple_component<CUDACellularAutomaton>;
@@ -36,10 +33,10 @@ CUDACellularAutomaton::CUDACellularAutomaton(
     gpuIndex(gpuIndex),
     nStreams(nStreams),
     streams(),
-    streamQueue(hpx::find_here()),
+    streamQueue(),
     streamInfo(),
     eventQueueSize(eventQueueSize),
-    resourceQueue(hpx::find_here()),
+    resourceQueue(),
     kernelsDone(nStreams),
     h_regionParams(nullptr),
     h_events(nullptr),
