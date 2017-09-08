@@ -40,6 +40,7 @@ CUDACellularAutomaton::CUDACellularAutomaton(
     streamInfo(),
     eventQueueSize(eventQueueSize),
     resourceQueue(hpx::find_here()),
+    kernelsDone(nStreams),
     h_regionParams(nullptr),
     h_events(nullptr),
     h_indices(nullptr),
@@ -493,6 +494,8 @@ void CUDACellularAutomaton::createChannels()
         resourceQueue.set(i);
     }
     //std::cerr << ok << std::endl;
+
+    assert(kernelsDone.size() == nStreams);
 }
 
 void CUDACellularAutomaton::destroyChannels()
@@ -508,6 +511,9 @@ void CUDACellularAutomaton::destroyChannels()
         resourceQueue.get(hpx::launch::sync);
     }
     //std::cerr << ok << std::endl;
+
+    // kernelsDone does not need any specific finalization step
+    // Its elements should already be empty
 }
 
 std::vector<Host::Quadruplet>
@@ -518,7 +524,8 @@ CUDACellularAutomaton::run(
     //std::cerr << "Entering run()" << std::endl;
     // Request pinned buffers (may suspend thread until resources are available)
     //std::cerr << "Requesting buffers... ";
-    const unsigned int bufferIndex = resourceQueue.get(hpx::launch::sync);
+    auto f_bufferIndex = resourceQueue.get();
+    const unsigned int bufferIndex = f_bufferIndex.get();
     //std::cerr << ok << "(allocated buffer #" << bufferIndex << ")" << std::endl;
 
     // Copy event data to pinned memory
@@ -528,7 +535,8 @@ CUDACellularAutomaton::run(
 
     // Request a CUDA stream (may suspend until it is available)
     //std::cerr << "Requesting stream... ";
-    const unsigned int streamIndex = streamQueue.get(hpx::launch::sync);
+    auto f_streamIndex = streamQueue.get();
+    const unsigned int streamIndex = f_streamIndex.get();
     //std::cerr << ok << "(allocated stream #" << streamIndex << ")" << std::endl;
 
     // Asynchronously copy data to the GPU
@@ -662,15 +670,17 @@ CUDACellularAutomaton::run(
     asyncResetCAState(streamIndex);
     //std::cerr << ok << std::endl;
 
-    // [TODO] Suspend thread and resume it with callback
+    // Suspend thread and resume it with callback
 
-    // FIXME: debug
-    //std::cerr << warning << "synchronizing stream... ";
-    auto syncErr = cudaStreamSynchronize(streams[streamIndex]);
-    if (syncErr != cudaSuccess) {
-        HPX_THROW_EXCEPTION(hpx::no_success, "runtime_error", cudaGetErrorString(syncErr));
-    }
-    //std::cerr << ok << std::endl;
+    // The asynchronous callback will set kernelsDone[streamIndex] when all
+    // asynchronous operations have completed.
+    enqueueCallback(streamIndex);
+
+    // Request a future representing the asynchronous operations
+    auto f_done = kernelsDone[streamIndex].get();
+
+    // Suspend this thread until asynchronous operations have completed
+    f_done.get();
 
     // Give back the buffers and the stream
     const std::size_t n_found_quad = h_foundNtuplets[bufferIndex]->m_size;
@@ -933,4 +943,17 @@ std::vector<Host::Quadruplet> CUDACellularAutomaton::makeQuadrupletVector(
         quadruplets.push_back(quad);
     }
     return quadruplets;
+}
+
+void CUDACellularAutomaton::enqueueCallback(unsigned int streamIndex)
+{
+    cudaStreamAddCallback(
+        streams[streamIndex],
+        [](cudaStream_t str, cudaError_t status, void *data) -> void {
+            auto done = static_cast<hpx::lcos::local::one_element_channel<void>*>(data);
+            done->set();
+        },
+        static_cast<void*>(&kernelsDone[streamIndex]),
+        0
+    );
 }

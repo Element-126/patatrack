@@ -1,6 +1,7 @@
 #pragma once
 
 #include <hpx/lcos/channel.hpp>
+#include <hpx/lcos/local/channel.hpp>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -70,6 +71,11 @@ private:
     const unsigned int eventQueueSize;
     hpx::lcos::channel<unsigned int> resourceQueue;
 
+    // Vector of one-element channels (one per CUDA stream) set by the CUDA
+    // callback to notify the corresponding suspended HPX thread when
+    // asynchronous operations have completed
+    std::vector<hpx::lcos::local::one_element_channel<void>> kernelsDone;
+
     // Host-side pinned memory for the input data
     GPU::Region *h_regionParams;
     GPU::Event *h_events;
@@ -127,6 +133,10 @@ private:
     void copyEventToPinnedBuffers(const Host::Event& evt, unsigned int idx);
     void asyncCopyEventToGPU(unsigned int bufferIndex, unsigned int streamIndex);
     void asyncCopyResultsToHost(unsigned int streamIndex, unsigned int bufferIndex);
+
+    // Setup CUDA callback to wake-up the calling thread when asynchronous
+    // operations have completed
+    void enqueueCallback(unsigned int streamIndex);
 
     // Copy GPU quadruplets to a vector of host quadruplets
     std::vector<Host::Quadruplet> makeQuadrupletVector(unsigned int bufferIndex) const;
