@@ -26,7 +26,7 @@
 namespace detail
 {
     // Compile-time tunables
-    constexpr unsigned int stackSize = 4;
+    constexpr unsigned int stackSize = 3;
 
     // Debug helpers
     inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
