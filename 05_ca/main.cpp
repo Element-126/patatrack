@@ -187,7 +187,10 @@ int main(int argc, char* argv[])
          "Hard pT cut");
 
     po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::store(
+        po::command_line_parser(argc, argv).options(desc).allow_unregistered().run(),
+        vm
+    );
     po::notify(vm);
 
     // Display usage if -h/--help was passed
