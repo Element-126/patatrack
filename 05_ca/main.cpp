@@ -35,6 +35,7 @@ int hpx_main(po::variables_map& vm)
         vm["phi-cut"].as<double>(),
         vm["hard-pt-cut"].as<double>()
     );
+    const std::size_t nRepeat = vm["iterations"].as<std::size_t>();
 
     // Parse input file
     std::vector<Host::Event> events;
@@ -46,6 +47,7 @@ int hpx_main(po::variables_map& vm)
     unsigned int max_doublets = 0;
     parseinputFile(input_file, events, region, max_events, max_hits, max_doublets);
     std::size_t nEvents = events.size();
+    const std::size_t nTotalEvents = nEvents * nRepeat;
 
     const Host::MaxHitsAndLayers maxHitsAndLayers(
         max_hits,
@@ -92,18 +94,21 @@ int hpx_main(po::variables_map& vm)
     hpx::cout << "main(): Sending events..." << std::endl;
     using QuadrupletVector = std::vector<Host::Quadruplet>;
     CUDACellularAutomaton_run_action ca_action;
-    std::vector<hpx::future<QuadrupletVector>> f_allQuadruplets(nEvents);
-    std::vector<std::size_t> nFoundQuadruplets(nEvents, 0);
-    for (std::size_t n = 0 ; n < nEvents ; ++n) {
-        f_allQuadruplets[n] = hpx::async(ca_action, ca, events[n]);
-        // auto fut = hpx::async(ca_action, ca, events[n]);
-        // auto fut = hpx::async(ca_action, ca, events[n]);
-        // auto quadruplets = fut.get();
-        // nFoundQuadruplets[n] = quadruplets.size();
-        // std::cerr << "#" << n << ": Found " << quadruplets.size() << " quadruplets:" << std::endl;
-        // for (std::size_t i = 0 ; i < quadruplets.size() ; ++i) {
-        //     std::cerr << "    " << quadruplets[i] << std::endl;
-        // }
+    std::vector<hpx::future<QuadrupletVector>> f_allQuadruplets(nTotalEvents);
+    std::vector<std::size_t> nFoundQuadruplets(nTotalEvents, 0);
+    for (std::size_t k = 0 ; k < nRepeat ; ++k) {
+        for (std::size_t n = 0 ; n < nEvents ; ++n) {
+            const auto idx = k*nEvents + n;
+            f_allQuadruplets[idx] = hpx::async(ca_action, ca, events[n]);
+            // auto fut = hpx::async(ca_action, ca, events[n]);
+            // auto fut = hpx::async(ca_action, ca, events[n]);
+            // auto quadruplets = fut.get();
+            // nFoundQuadruplets[n] = quadruplets.size();
+            // std::cerr << "#" << n << ": Found " << quadruplets.size() << " quadruplets:" << std::endl;
+            // for (std::size_t i = 0 ; i < quadruplets.size() ; ++i) {
+            //     std::cerr << "    " << quadruplets[i] << std::endl;
+            // }
+        }
     }
 
     // DEBUG
@@ -136,14 +141,20 @@ int hpx_main(po::variables_map& vm)
     // }
 
     // DEBUG: wait for futures in-order
-    for (std::size_t n = 0 ; n < nEvents ; ++n) {
-        nFoundQuadruplets[n] = f_allQuadruplets[n].get().size();
-        // hpx::cout << "main(): Received " << nFoundQuadruplets[n] << " quadruplets (event #" << n << ")" << std::endl;
+    for (std::size_t k = 0 ; k < nRepeat ; ++k) {
+        for (std::size_t n = 0 ; n < nEvents ; ++n) {
+            const auto idx = k*nEvents + n;
+            nFoundQuadruplets[idx] = f_allQuadruplets[idx].get().size();
+            // hpx::cout << "main(): Received " << nFoundQuadruplets[n] << " quadruplets (event #" << n << ")" << std::endl;
+        }
     }
 
     hpx::cout << "All received batches:" << std::endl;
-    for (std::size_t n = 0 ; n < nEvents ; ++n) {
-        hpx::cout << "    #" << n << ":\t" << nFoundQuadruplets[n] << std::endl;
+    for (std::size_t k = 0 ; k < nRepeat ; ++k) {
+        for (std::size_t n = 0 ; n < nEvents ; ++n) {
+            const auto idx = k*nEvents + n;
+            hpx::cout << "    #" << n << ":\t" << nFoundQuadruplets[idx] << std::endl;
+        }
     }
 
     // Finalize HPX runtime
@@ -184,7 +195,10 @@ int main(int argc, char* argv[])
          "φ cut")
         ("hard-pt-cut",
          po::value<double>()->default_value(0.),
-         "Hard pT cut");
+         "Hard pT cut")
+        ("iterations",
+         po::value<std::size_t>()->default_value(1),
+         "Number of times each event will be processed");
 
     po::variables_map vm;
     po::store(
