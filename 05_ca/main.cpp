@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <cassert>
+#include <chrono>
 
 #include "Event/HostEvent.hpp"
 #include "Event/HostRegion.hpp"
@@ -96,6 +97,8 @@ int hpx_main(po::variables_map& vm)
     CUDACellularAutomaton_run_action ca_action;
     std::vector<hpx::future<QuadrupletVector>> f_allQuadruplets(nTotalEvents);
     std::vector<std::size_t> nFoundQuadruplets(nTotalEvents, 0);
+    std::chrono::high_resolution_clock clock;
+    const auto start_time = clock.now();
     for (std::size_t k = 0 ; k < nRepeat ; ++k) {
         for (std::size_t n = 0 ; n < nEvents ; ++n) {
             const auto idx = k*nEvents + n;
@@ -148,6 +151,10 @@ int hpx_main(po::variables_map& vm)
             // hpx::cout << "main(): Received " << nFoundQuadruplets[n] << " quadruplets (event #" << n << ")" << std::endl;
         }
     }
+    const auto end_time = clock.now();
+    const double seconds =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count()
+        / 1000.;
 
     hpx::cout << "All received batches:" << std::endl;
     for (std::size_t k = 0 ; k < nRepeat ; ++k) {
@@ -156,6 +163,8 @@ int hpx_main(po::variables_map& vm)
             hpx::cout << "    #" << n << ":\t" << nFoundQuadruplets[idx] << std::endl;
         }
     }
+    const auto throughput_Hz = nTotalEvents / seconds;
+    std::cerr << "Total event processing rate: " << throughput_Hz << " Hz" << std::endl;
 
     // Finalize HPX runtime
     hpx::cout << "main(): Finalizing HPX NOW!" << std::endl;
