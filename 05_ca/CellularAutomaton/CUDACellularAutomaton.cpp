@@ -329,7 +329,7 @@ bool CUDACellularAutomaton::allocateDeviceMemory()
         new (tmp_foundNtuplets[i]) QuadrupletVector(maxNumberOfQuadruplets, data_ptr);
         assert(tmp_foundNtuplets[i]->m_size == 0);
         assert(tmp_foundNtuplets[i]->m_data == data_ptr);
-        assert(tmp_foundNtuplets[i]->maxSize == maxNumberOfQuadruplets);
+        assert(tmp_foundNtuplets[i]->maxSize == static_cast<int>(maxNumberOfQuadruplets));
 
         // Allocate memory for the object on the device...
         success = success && cudaMalloc(
@@ -364,7 +364,7 @@ bool CUDACellularAutomaton::allocateDeviceMemory()
                     GPU::SimpleVector<unsigned int>(maxCellsPerHit, data_ptr);
                 assert(tmp_isOuterHitOfCell[i][idx].m_data == data_ptr);
                 assert(tmp_isOuterHitOfCell[i][idx].m_size == 0);
-                assert(tmp_isOuterHitOfCell[i][idx].maxSize == maxCellsPerHit);
+                assert(tmp_isOuterHitOfCell[i][idx].maxSize == static_cast<int>(maxCellsPerHit));
             }
         }
         // Initialize data arrays to zero
@@ -870,7 +870,6 @@ void CUDACellularAutomaton::asyncCopyResultsToHost(
     );
 
     // Copy quadruplet data
-    // h_foundNtuplets[bufferIndex]->m_size = 3000; // FIXME
     cudaMemcpyAsync(
         h_foundNtuplets[bufferIndex]->m_data,
         tmp_foundNtuplets[streamIndex]->m_data,
@@ -889,7 +888,7 @@ void CUDACellularAutomaton::asyncCopyResultsToHost(
             auto bufferIndex = std::get<2>(tup);
             this_->h_foundNtuplets[bufferIndex]->m_size = this_->tmp_foundNtuplets[streamIndex]->m_size;
             assert(this_->h_foundNtuplets[bufferIndex]->maxSize
-                   >= static_cast<unsigned int>(this_->tmp_foundNtuplets[streamIndex]->m_size));
+                   >= this_->tmp_foundNtuplets[streamIndex]->m_size);
             // std::cerr << ok << std::endl;
         },
         static_cast<void*>(&streamInfo[streamIndex]),
@@ -911,7 +910,7 @@ void CUDACellularAutomaton::asyncResetCAState(
     );
 
     assert(tmp_isOuterHitOfCell[streamIndex][0].m_size == 0);
-    assert(tmp_isOuterHitOfCell[streamIndex][0].maxSize == maxCellsPerHit);
+    assert(tmp_isOuterHitOfCell[streamIndex][0].maxSize == static_cast<int>(maxCellsPerHit));
 
     cudaMemcpyAsync(
         device_isOuterHitOfCell[streamIndex],

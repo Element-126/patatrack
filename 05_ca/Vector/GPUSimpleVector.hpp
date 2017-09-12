@@ -23,7 +23,7 @@ namespace GPU
     // Constructors
     __host__ __device__
     SimpleVector(unsigned int maxSize, T *m_data = nullptr)
-        : m_size(0), m_data(m_data), maxSize(maxSize) {}
+        : m_size(0), m_data(m_data), maxSize(static_cast<int>(maxSize)) {}
 
     __host__ __device__
     SimpleVector() : SimpleVector(0) {}
@@ -35,7 +35,7 @@ namespace GPU
 
 			auto previousSize = m_size;
 			m_size++;
-			if(static_cast<unsigned int>(previousSize) < maxSize)
+			if(previousSize < maxSize)
 			{
 				m_data[previousSize] = element;
 				return previousSize;
@@ -95,7 +95,7 @@ namespace GPU
 
 		T *m_data;
 
-    unsigned int maxSize;
+    int maxSize;
 
 	};
 }
