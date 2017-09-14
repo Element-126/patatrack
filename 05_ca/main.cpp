@@ -112,7 +112,7 @@ int hpx_main(po::variables_map& vm)
     std::size_t idx = 0, lastIdx = 0;
     double futureProductionTime = 0.;
     double eventProcessingTime = 0.;
-    while (idx < nTotalEvents)
+    while (lastIdx < nTotalEvents)
     {
         // Wait for the results of the previous batch, in-order, in another thread
         hpx::future<double> f_done = hpx::async([idx, lastIdx, &f_allQuadruplets, &nFoundQuadruplets, &clock]() {
@@ -144,17 +144,18 @@ int hpx_main(po::variables_map& vm)
     }
 
     hpx::cout << hpx::flush;
-    // hpx::cout << "All received batches:" << std::endl << hpx::flush;
-    // std::size_t sum = 0;
-    // for (std::size_t k = 0 ; k < nRepeat ; ++k) {
-    //     for (std::size_t n = 0 ; n < nEvents ; ++n) {
-    //         const auto idx = k*nEvents + n;
-    //         sum += nFoundQuadruplets[idx];
-    //         hpx::cout << "    #" << n << ":\t" << nFoundQuadruplets[idx] << "\t" << sum << std::endl;
-    //     }
-    //     hpx::cout << "Iteration #" << k << ": sum = " << sum << std::endl << hpx::flush;
-    //     sum = 0;
-    // }
+    hpx::cout << "All received batches:" << std::endl << hpx::flush;
+    std::size_t sum = 0;
+    for (std::size_t idx = 0 ; idx < nTotalEvents ; ++idx) {
+        sum += nFoundQuadruplets[idx];
+        const std::size_t n = idx % nEvents;
+        hpx::cout << "    #" << n << ":\t" << nFoundQuadruplets[idx] << "\t" << sum << std::endl;
+        if (idx % nEvents == nEvents - 1) {
+            const std::size_t k = idx / nEvents;
+            hpx::cout << "Iteration #" << k << ": sum = " << sum << std::endl << hpx::flush;
+            sum = 0;
+        }
+    }
     hpx::cout << "Processed " << nTotalEvents << " events" << hpx::endl << hpx::flush;
     hpx::cerr << "Future production rate: " << nTotalEvents / futureProductionTime << " Hz" << hpx::endl << hpx::flush;
     hpx::cerr << "Event processing rate: " << nTotalEvents / eventProcessingTime << " Hz" << hpx::endl << hpx::flush;
