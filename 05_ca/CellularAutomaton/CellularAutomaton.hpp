@@ -17,9 +17,6 @@ class CellularAutomaton
 {
 public:
 
-    // [FIXME] Default constructor needed by HPX
-    CellularAutomaton() = default;
-
     CellularAutomaton(
         Host::Region region,
         Host::Cuts cuts,

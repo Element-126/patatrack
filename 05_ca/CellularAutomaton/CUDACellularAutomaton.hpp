@@ -21,16 +21,6 @@ class CUDACellularAutomaton :
 {
 public:
 
-    // [FIXME] Default constructor, just to make HPX happy
-    // Warning: does not construct a valid object, but just a placeholder
-    CUDACellularAutomaton() :
-        maxNumberOfQuadruplets(3000),
-        maxCellsPerHit(100),
-        gpuIndex(0),
-        nStreams(0),
-        eventQueueSize(0)
-        {}
-
     CUDACellularAutomaton(
         unsigned int maxNumberOfQuadruplets,
         unsigned int maxCellsPerHit,

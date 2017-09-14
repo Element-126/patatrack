@@ -8,8 +8,6 @@ class CPUCellularAutomaton
 {
 public:
 
-    CPUCellularAutomaton() = default; // FIXME
-
     virtual std::vector<Quadruplet> run(HostEvent event) override;
 
 private:
