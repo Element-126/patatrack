@@ -24,15 +24,15 @@ all: $(EXEC)
 $(EXEC): $(DIR)/libkernels.so main.cpp $(OBJ)
 	$(CXX) $(CXXFLAGS) $(HPXAPPFLAGS) $(wordlist 2, $(words $^), $^) -o $@ $(HPXAPPLIBS) $(CUDALIBS) -L$(DIR) -lkernels -D HPX_APPLICATION
 
-$(DIR)/kernel_wrappers.o: Kernel/kernel_wrappers.cu Kernel/kernel_wrappers.hpp Kernel/kernels.hpp
+$(DIR)/kernel_wrappers.o: Kernel/kernel_wrappers.cu Kernel/kernel_wrappers.hpp Kernel/kernels.hpp Event/GPUEvent.h Event/GPURegion.h HitsAndDoublets/GPUHitsAndDoublets.h CellularAutomaton/GPUCACell.hpp CellularAutomaton/GPUQuadruplet.hpp Vector/GPUSimpleVector.hpp Vector/GPUStaticVector.hpp
 	mkdir -p $(DIR)
 	nvcc $(CUDAFLAGS) $(CUDAXFLAGS) -dc $< -o $@
 
-$(DIR)/CellularAutomaton.o: CellularAutomaton/CellularAutomaton.cpp CellularAutomaton/CellularAutomaton.hpp
+$(DIR)/CellularAutomaton.o: CellularAutomaton/CellularAutomaton.cpp CellularAutomaton/CellularAutomaton.hpp Event/HostEvent.hpp Event/HostRegion.hpp CellularAutomaton/HostQuadruplet.hpp CellularAutomaton/Cuts.hpp CellularAutomaton/MaxHitsAndLayers.hpp
 	mkdir -p $(DIR)
 	$(CXX) $(CXXFLAGS) $(HPXAPPFLAGS) -c $< -o $@ -D HPX_COMPONENT_NAME=CellularAutomaton
 
-$(DIR)/CUDACellularAutomaton.o: CellularAutomaton/CUDACellularAutomaton.cpp CellularAutomaton/CUDACellularAutomaton.hpp
+$(DIR)/CUDACellularAutomaton.o: CellularAutomaton/CUDACellularAutomaton.cpp CellularAutomaton/CUDACellularAutomaton.hpp Event/GPUEvent.h Event/GPURegion.h HitsAndDoublets/GPUHitsAndDoublets.h Vector/GPUSimpleVector.hpp CellularAutomaton/GPUQuadruplet.hpp CellularAutomaton/GPUCACell.hpp CellularAutomaton/CellularAutomaton.o
 	$(CXX) $(CXXFLAGS) $(HPXAPPFLAGS) -c $< -o $@ -D HPX_COMPONENT_NAME=CUDACellularAutomaton
 
 $(DIR)/gpu_code.o: $(DIR)/kernel_wrappers.o
