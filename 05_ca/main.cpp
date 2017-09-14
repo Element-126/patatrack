@@ -7,6 +7,7 @@
 #include <hpx/parallel/executors.hpp>
 #include <hpx/parallel/executors/parallel_executor.hpp>
 #include <hpx/parallel/executors/static_chunk_size.hpp>
+#include <hpx/parallel/executors/guided_chunk_size.hpp>
 
 #include <boost/program_options.hpp>
 #include <boost/algorithm/string.hpp>
@@ -51,6 +52,8 @@ int hpx_main(po::variables_map& vm)
     std::transform(subStrings.begin(), subStrings.end(), std::back_inserter(gpuIndices),
                    [](std::string const& str) -> std::size_t { return std::stoi(str); });
     const std::size_t nGPUs = gpuIndices.size();
+    const std::size_t batchSize = vm["batch-size"].as<std::size_t>();
+    const std::size_t chunkSize = vm["chunk-size"].as<std::size_t>();
 
     // Parse input file
     std::vector<Host::Event> events;
@@ -102,39 +105,38 @@ int hpx_main(po::variables_map& vm)
     std::vector<hpx::future<QuadrupletVector>> f_allQuadruplets(nTotalEvents);
     std::vector<std::size_t> nFoundQuadruplets(nTotalEvents, 0);
     std::chrono::high_resolution_clock clock;
-    hpx::parallel::static_chunk_size chunk_size(1);
-    const auto start_time = clock.now();
-    hpx::parallel::for_loop(hpx::parallel::execution::par.with(chunk_size), 0, nRepeat, [&](std::size_t k) {
-    // for (std::size_t k = 0 ; k < nRepeat ; ++k) {
-        for (std::size_t n = 0 ; n < nEvents ; ++n) {
-            const auto idx = k*nEvents + n;
-            const auto &ca = cellularAutomatons[idx % nGPUs];
-            f_allQuadruplets[idx] = hpx::async(ca_action, ca, events[n]);
+    // hpx::parallel::static_chunk_size chunkSizeExe(chunkSize);
+    hpx::parallel::guided_chunk_size chunkSizeExe;
+    std::size_t idx = 0;
+    double futureProductionTime = 0.;
+    double eventProcessingTime = 0.;
+    while (idx < nTotalEvents)
+    {
+        const std::size_t nextBatchIdx = std::min(idx + batchSize, nTotalEvents);
+        // Send futures
+        auto start_time = clock.now();
+        hpx::parallel::for_loop(hpx::parallel::par.with(chunkSizeExe), idx, nextBatchIdx, [&](std::size_t i) {
+        // for (std::size_t i = idx ; i < nextBatchIdx ; ++i) {
+            const auto &ca = cellularAutomatons[i % nGPUs];
+            const auto &evt = events[i % nEvents];
+            f_allQuadruplets[i] = hpx::async(ca_action, ca, evt);
+        });
+        auto end_time = clock.now();
+        futureProductionTime +=
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count()
+            / 1000.;
+        // }
+        // Wait for the results in-order
+        for (std::size_t i = idx ; i < nextBatchIdx ; ++i) {
+            nFoundQuadruplets[i] = f_allQuadruplets[i].get().size();
         }
-    });
-    // }
-    const auto send_future_time = clock.now();
-    const double sf_seconds =
-        std::chrono::duration_cast<std::chrono::milliseconds>(send_future_time - start_time).count()
-        / 1000.;
-    hpx::cout << "Future production rate: " << nTotalEvents / sf_seconds << " Hz" << hpx::endl << hpx::flush;
+        end_time = clock.now();
+        eventProcessingTime +=
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count()
+            / 1000.;
 
-    // DEBUG: wait for futures in-order
-    for (std::size_t k = 0 ; k < nRepeat ; ++k) {
-        for (std::size_t n = 0 ; n < nEvents ; ++n) {
-            const auto idx = k*nEvents + n;
-            auto quadruplets = f_allQuadruplets[idx].get();
-            nFoundQuadruplets[idx] = quadruplets.size();
-            // std::cerr << "#" << n << ": Found " << quadruplets.size() << " quadruplets:" << std::endl;
-            // for (std::size_t i = 0 ; i < quadruplets.size() ; ++i) {
-            //     std::cerr << "    " << quadruplets[i] << std::endl;
-            // }
-        }
+        idx = nextBatchIdx;
     }
-    const auto end_time = clock.now();
-    const double seconds =
-        std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count()
-        / 1000.;
 
     hpx::cout << hpx::flush;
     // hpx::cout << "All received batches:" << std::endl << hpx::flush;
@@ -148,9 +150,9 @@ int hpx_main(po::variables_map& vm)
     //     hpx::cout << "Iteration #" << k << ": sum = " << sum << std::endl << hpx::flush;
     //     sum = 0;
     // }
-    const auto throughput_Hz = nTotalEvents / seconds;
     hpx::cout << "Processed " << nTotalEvents << " events" << hpx::endl << hpx::flush;
-    hpx::cout << "Total event processing rate: " << throughput_Hz << " Hz" << hpx::endl << hpx::flush;
+    hpx::cerr << "Future production rate: " << nTotalEvents / futureProductionTime << " Hz" << hpx::endl << hpx::flush;
+    hpx::cerr << "Event processing rate: " << nTotalEvents / eventProcessingTime << " Hz" << hpx::endl << hpx::flush;
 
     // Finalize HPX runtime
     return hpx::finalize();
@@ -195,7 +197,13 @@ int main(int argc, char* argv[])
          "Number of times each event will be processed")
         ("gpus",
          po::value<std::string>()->default_value("0"),
-         "Comma-separated list of GPUs to use");
+         "Comma-separated list of GPUs to use")
+        ("batch-size,z",
+         po::value<std::size_t>()->default_value(100),
+         "Number of futures scheduled simultaneously")
+        ("chunk-size,k",
+         po::value<std::size_t>()->default_value(10),
+         "Chunk size for parallel future production");
 
     po::variables_map vm;
     po::store(
