@@ -17,6 +17,7 @@
 #include <vector>
 #include <cassert>
 #include <chrono>
+#include <fstream>
 
 #include "Event/HostEvent.hpp"
 #include "Event/HostRegion.hpp"
@@ -104,21 +105,35 @@ int hpx_main(po::variables_map& vm)
     CUDACellularAutomaton_run_action ca_action;
     std::vector<hpx::future<QuadrupletVector>> f_allQuadruplets(nTotalEvents);
     std::vector<std::size_t> nFoundQuadruplets(nTotalEvents, 0);
-    std::chrono::high_resolution_clock clock;
+
     // Fixed chunk size
     // hpx::parallel::static_chunk_size chunkSizeExe(chunkSize);
     // Automatic, but with a minimum chunk size
     hpx::parallel::guided_chunk_size chunkSizeExe(chunkSize);
-    std::size_t idx = 0, lastIdx = 0;
+
+    // Time measurement
+    std::chrono::high_resolution_clock clock;
     double futureProductionTime = 0.;
-    double eventProcessingTime = 0.;
+    double futureRetrievalTime = 0.;
+    std::vector<double> timings(batchSize, 0);
+    std::vector<std::size_t> counts(batchSize, 0);
+    auto const global_start_time = clock.now();
+
+    std::size_t idx = 0, lastIdx = 0;
     while (lastIdx < nTotalEvents)
     {
         // Wait for the results of the previous batch, in-order, in another thread
-        hpx::future<double> f_done = hpx::async([idx, lastIdx, &f_allQuadruplets, &nFoundQuadruplets, &clock]() {
+        hpx::future<double> f_done = hpx::async([idx, lastIdx, &f_allQuadruplets, &nFoundQuadruplets, &clock, &timings, &counts]() {
             auto const start_time = clock.now();
+            auto partial_time = clock.now();
+            const std::size_t batchSize = timings.size();
             for (std::size_t i = lastIdx ; i < idx ; ++i) {
+                auto const last = partial_time;
                 nFoundQuadruplets[i] = f_allQuadruplets[i].get().size();
+                partial_time = clock.now();
+                const std::size_t j = i % batchSize;
+                timings[j] += std::chrono::duration_cast<std::chrono::milliseconds>(partial_time - last).count();
+                ++counts[j];
             }
             auto const end_time = clock.now();
             return std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.;
@@ -138,9 +153,16 @@ int hpx_main(po::variables_map& vm)
         futureProductionTime +=
             std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.;
 
-        eventProcessingTime += f_done.get(); // Synchronize
+        futureRetrievalTime += f_done.get(); // Synchronize
         lastIdx = idx;
         idx = nextBatchIdx;
+    }
+    auto const global_end_time = clock.now();
+    const double eventProcessingTime =
+        std::chrono::duration_cast<std::chrono::milliseconds>(global_end_time - global_start_time).count() / 1000.;
+
+    for (std::size_t i = 0 ; i < batchSize ; ++i) {
+        timings[i] /= static_cast<double>(counts[i]);
     }
 
     hpx::cout << hpx::flush;
@@ -158,7 +180,16 @@ int hpx_main(po::variables_map& vm)
     }
     hpx::cout << "Processed " << nTotalEvents << " events" << hpx::endl << hpx::flush;
     hpx::cerr << "Future production rate: " << nTotalEvents / futureProductionTime << " Hz" << hpx::endl << hpx::flush;
-    hpx::cerr << "Event processing rate: " << nTotalEvents / eventProcessingTime << " Hz" << hpx::endl << hpx::flush;
+    hpx::cerr << "Future retrieval rate: " << nTotalEvents / futureRetrievalTime << " Hz" << hpx::endl << hpx::flush;
+    hpx::cerr << "Overall event processing rate: " << nTotalEvents / eventProcessingTime << " Hz" << hpx::endl << hpx::flush;
+
+    {
+        std::ofstream timings_file("timings.dat");
+        assert(timings.size() > 0);
+        for (auto const &timing: timings) {
+            timings_file << timing << std::endl;
+        }
+    }
 
     // Finalize HPX runtime
     return hpx::finalize();
