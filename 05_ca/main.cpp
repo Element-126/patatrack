@@ -2,8 +2,15 @@
 #include <hpx/hpx_init.hpp>
 #include <hpx/runtime/find_localities.hpp>
 #include <hpx/include/iostreams.hpp>
+#include <hpx/parallel/algorithms/for_loop.hpp>
+#include <hpx/parallel/execution_policy.hpp>
+#include <hpx/parallel/executors.hpp>
+#include <hpx/parallel/executors/parallel_executor.hpp>
+#include <hpx/parallel/executors/static_chunk_size.hpp>
 
 #include <boost/program_options.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/split.hpp>
 
 #include <string>
 #include <vector>
@@ -37,6 +44,13 @@ int hpx_main(po::variables_map& vm)
         vm["hard-pt-cut"].as<double>()
     );
     const std::size_t nRepeat = vm["iterations"].as<std::size_t>();
+    const std::string gpuListString = vm["gpus"].as<std::string>();
+    std::vector<std::string> subStrings;
+    std::vector<std::size_t> gpuIndices;
+    boost::split(subStrings, gpuListString, boost::is_any_of(","));
+    std::transform(subStrings.begin(), subStrings.end(), std::back_inserter(gpuIndices),
+                   [](std::string const& str) -> std::size_t { return std::stoi(str); });
+    const std::size_t nGPUs = gpuIndices.size();
 
     // Parse input file
     std::vector<Host::Event> events;
@@ -50,6 +64,9 @@ int hpx_main(po::variables_map& vm)
     std::size_t nEvents = events.size();
     const std::size_t nTotalEvents = nEvents * nRepeat;
 
+    std::cerr << "Max number of hits: " << max_hits << std::endl;
+    std::cerr << "Max number of doublets: " << max_doublets << std::endl;
+
     const Host::MaxHitsAndLayers maxHitsAndLayers(
         max_hits,
         max_doublets,
@@ -58,97 +75,60 @@ int hpx_main(po::variables_map& vm)
         maxNumberOfRootLayerPairs
     );
 
-    // // Dispatch events to the various localities, in a round-robin fashion
-    // auto localities = hpx::find_all_localities();
-    // const std::size_t n_localities = localities.size();
-    // std::cout << "Processing " << nEvents << " events on "
-    //           << n_localities << " localities" << std::endl;
-    // std::vector<hpx::future<std::vector<std::array<std::array<int, 2>, 3>>>> quadruplets_fut(events.size());
-    // for (std::size_t i = 0 ; i < nEvents ; ++i) {
-    //     auto loc = localities[i % n_localities];
-    //     assert(i < events.size());
-    //     quadruplets_fut[i] = hpx::async(process_event_action(), loc, events[i]);
-    // }
+    auto const localities = hpx::find_all_localities();
+    std::vector<hpx::id_type> cellularAutomatons(nGPUs);
+    std::vector<hpx::future<hpx::id_type>> f_ca(nGPUs);
+    for (std::size_t i = 0 ; i < nGPUs ; ++i) {
+        assert(gpuIndices.size() == nGPUs);
+        f_ca[i] = hpx::new_<CUDACellularAutomaton>(
+            localities[i % localities.size()],
+            maxNumberOfQuadruplets,
+            maxCellsPerHit,
+            region,
+            cuts,
+            maxHitsAndLayers,
+            gpuIndices[i],
+            nStreams,
+            eventQueueSize
+        );
+    }
 
-    // // Wait for everyone to finish
-    // hpx::wait_all(quadruplets_fut);
-    // std::cout << "Done" << std::endl;
+    for (std::size_t i = 0 ; i < nGPUs ; ++i) {
+        cellularAutomatons[i] = f_ca[i].get();
+    }
 
-    constexpr std::size_t gpuIndex = 0;
-    hpx::cout << "main(): Remotely instantiating CA... ";
-    auto f_ca = hpx::new_<CUDACellularAutomaton>(
-        hpx::find_here(),
-        maxNumberOfQuadruplets,
-        maxCellsPerHit,
-        region,
-        cuts,
-        maxHitsAndLayers,
-        gpuIndex,
-        nStreams,
-        eventQueueSize
-    );
-
-    hpx::cout << "synchronizing... ";
-    auto ca = f_ca.get();
-    hpx::cout << "\033[1;32mOK\033[0m" << std::endl;
-
-    hpx::cout << "main(): Sending events..." << std::endl;
     using QuadrupletVector = std::vector<Host::Quadruplet>;
     CUDACellularAutomaton_run_action ca_action;
     std::vector<hpx::future<QuadrupletVector>> f_allQuadruplets(nTotalEvents);
     std::vector<std::size_t> nFoundQuadruplets(nTotalEvents, 0);
     std::chrono::high_resolution_clock clock;
+    hpx::parallel::static_chunk_size chunk_size(1);
     const auto start_time = clock.now();
-    for (std::size_t k = 0 ; k < nRepeat ; ++k) {
+    hpx::parallel::for_loop(hpx::parallel::execution::par.with(chunk_size), 0, nRepeat, [&](std::size_t k) {
+    // for (std::size_t k = 0 ; k < nRepeat ; ++k) {
         for (std::size_t n = 0 ; n < nEvents ; ++n) {
             const auto idx = k*nEvents + n;
+            const auto &ca = cellularAutomatons[idx % nGPUs];
             f_allQuadruplets[idx] = hpx::async(ca_action, ca, events[n]);
-            // auto fut = hpx::async(ca_action, ca, events[n]);
-            // auto fut = hpx::async(ca_action, ca, events[n]);
-            // auto quadruplets = fut.get();
-            // nFoundQuadruplets[n] = quadruplets.size();
-            // std::cerr << "#" << n << ": Found " << quadruplets.size() << " quadruplets:" << std::endl;
-            // for (std::size_t i = 0 ; i < quadruplets.size() ; ++i) {
-            //     std::cerr << "    " << quadruplets[i] << std::endl;
-            // }
         }
-    }
-
-    // DEBUG
-    // std::size_t nQuad = 0;
-    // std::size_t it = 0;
-    // do {
-    //     std::cerr << it << ":";
-    //     auto fut = hpx::async(ca_action, ca, events[11]);
-    //     auto quadruplets = fut.get();
-    //     nQuad = quadruplets.size();
-    //     std::cerr << " found " << nQuad << " quadruplets" << std::endl;
-    //     ++it;
-    // } while (true);
-
-    // DEBUG
-    // std::size_t receivedEvents = 0;
-    // while (receivedEvents < nEvents) {
-    //     int idx = -1;
-    //     for (std::size_t i = 0 ; i < f_allQuadruplets.size() ; ++i) {
-    //         if (f_allQuadruplets[i].is_ready()) {
-    //             idx = i;
-    //             break;
-    //         }
-    //     }
-    //     if (idx >= 0) {
-    //         nFoundQuadruplets[idx] = f_allQuadruplets[idx].get().size();
-    //         hpx::cout << "main(): Received " << nFoundQuadruplets[idx] << " quadruplets (event #" << idx << ")" << std::endl;
-    //         ++receivedEvents;
-    //     }
+    });
     // }
+    const auto send_future_time = clock.now();
+    const double sf_seconds =
+        std::chrono::duration_cast<std::chrono::milliseconds>(send_future_time - start_time).count()
+        / 1000.;
+    hpx::cout << "Future production rate: " << nTotalEvents / sf_seconds << " Hz" << hpx::endl << hpx::flush;
 
     // DEBUG: wait for futures in-order
     for (std::size_t k = 0 ; k < nRepeat ; ++k) {
         for (std::size_t n = 0 ; n < nEvents ; ++n) {
             const auto idx = k*nEvents + n;
-            nFoundQuadruplets[idx] = f_allQuadruplets[idx].get().size();
-            // hpx::cout << "main(): Received " << nFoundQuadruplets[n] << " quadruplets (event #" << n << ")" << std::endl;
+            auto quadruplets = f_allQuadruplets[idx].get();
+            nFoundQuadruplets[idx] = quadruplets.size();
+            // std::cerr << "#" << n << ": Found " << quadruplets.size() << " quadruplets:" << std::endl;
+            // for (std::size_t i = 0 ; i < quadruplets.size() ; ++i) {
+            //     std::cerr << "    " << quadruplets[i] << std::endl;
+            // }
         }
     }
     const auto end_time = clock.now();
@@ -156,18 +136,23 @@ int hpx_main(po::variables_map& vm)
         std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count()
         / 1000.;
 
-    hpx::cout << "All received batches:" << std::endl;
-    for (std::size_t k = 0 ; k < nRepeat ; ++k) {
-        for (std::size_t n = 0 ; n < nEvents ; ++n) {
-            const auto idx = k*nEvents + n;
-            hpx::cout << "    #" << n << ":\t" << nFoundQuadruplets[idx] << std::endl;
-        }
-    }
+    hpx::cout << hpx::flush;
+    // hpx::cout << "All received batches:" << std::endl << hpx::flush;
+    // std::size_t sum = 0;
+    // for (std::size_t k = 0 ; k < nRepeat ; ++k) {
+    //     for (std::size_t n = 0 ; n < nEvents ; ++n) {
+    //         const auto idx = k*nEvents + n;
+    //         sum += nFoundQuadruplets[idx];
+    //         hpx::cout << "    #" << n << ":\t" << nFoundQuadruplets[idx] << "\t" << sum << std::endl;
+    //     }
+    //     hpx::cout << "Iteration #" << k << ": sum = " << sum << std::endl << hpx::flush;
+    //     sum = 0;
+    // }
     const auto throughput_Hz = nTotalEvents / seconds;
-    std::cerr << "Total event processing rate: " << throughput_Hz << " Hz" << std::endl;
+    hpx::cout << "Processed " << nTotalEvents << " events" << hpx::endl << hpx::flush;
+    hpx::cout << "Total event processing rate: " << throughput_Hz << " Hz" << hpx::endl << hpx::flush;
 
     // Finalize HPX runtime
-    hpx::cout << "main(): Finalizing HPX NOW!" << std::endl;
     return hpx::finalize();
 }
 
@@ -207,7 +192,10 @@ int main(int argc, char* argv[])
          "Hard pT cut")
         ("iterations",
          po::value<std::size_t>()->default_value(1),
-         "Number of times each event will be processed");
+         "Number of times each event will be processed")
+        ("gpus",
+         po::value<std::string>()->default_value("0"),
+         "Comma-separated list of GPUs to use");
 
     po::variables_map vm;
     po::store(
