@@ -7,11 +7,12 @@ HPXCMPFLAGS = `pkg-config --cflags hpx_component`
 HPXCMPLIBS = `pkg-config --libs hpx_component` -lhpx_iostreams
 # CUDA 8.0
 # CUDAFLAGS = -std=c++11 -arch=sm_61 -g -G
-# CUDALIBS = -L/usr/local/cuda-8.0/lib64 -lcudart
+CUDAFLAGS =  -std=c++11 -arch=sm_61
+CUDALIBS = -L/usr/local/cuda-8.0/lib64 -lcudart
 # CUDA 9.0
-# CUDAFLAGS = -g -G -std=c++14 -arch=sm_61
-CUDAFLAGS = -O2 -std=c++14 -arch=sm_61
-CUDALIBS = -L/usr/local/cuda-9.0/lib64 -lcudart
+# CUDAFLAGS = -g -G -std=c++11 -arch=sm_61 -default-stream per-thread
+# CUDAFLAGS = -std=c++14 -arch=sm_61
+# CUDALIBS = -L/usr/local/cuda-9.0/lib64 -lcudart
 # CUDAXFLAGS = -Xcompiler '-fPIC -pipe -g -Og'
 CUDAXFLAGS = -Xcompiler '-fPIC -pipe -O3'
 DIR = build
