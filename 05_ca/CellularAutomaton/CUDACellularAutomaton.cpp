@@ -694,15 +694,21 @@ CUDACellularAutomaton::run(
 
     // Suspend thread and resume it with callback
 
-    // The asynchronous callback will set kernelsDone[streamIndex] when all
-    // asynchronous operations have completed.
-    enqueueCallback(streamIndex);
+    // // The asynchronous callback will set kernelsDone[streamIndex] when all
+    // // asynchronous operations have completed.
+    // enqueueCallback(streamIndex);
 
-    // Request a future representing the asynchronous operations
-    auto f_done = kernelsDone[streamIndex].get();
+    // // Request a future representing the asynchronous operations
+    // auto f_done = kernelsDone[streamIndex].get();
 
-    // Suspend this thread until asynchronous operations have completed
-    f_done.get();
+    // // Suspend this thread until asynchronous operations have completed
+    // f_done.get();
+    // FIXME: workaround
+    cudaStreamSynchronize(streams[streamIndex]);
+    auto const err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        HPX_THROW_EXCEPTION(hpx::no_success, (cudaGetErrorName(err)), (cudaGetErrorString(err)));
+    }
 
     // Give back the buffers and the stream
     // const std::size_t n_found_quad = h_foundNtuplets[bufferIndex]->m_size;
