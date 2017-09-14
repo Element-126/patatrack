@@ -105,36 +105,41 @@ int hpx_main(po::variables_map& vm)
     std::vector<hpx::future<QuadrupletVector>> f_allQuadruplets(nTotalEvents);
     std::vector<std::size_t> nFoundQuadruplets(nTotalEvents, 0);
     std::chrono::high_resolution_clock clock;
+    // Fixed chunk size
     // hpx::parallel::static_chunk_size chunkSizeExe(chunkSize);
-    hpx::parallel::guided_chunk_size chunkSizeExe;
-    std::size_t idx = 0;
+    // Automatic, but with a minimum chunk size
+    hpx::parallel::guided_chunk_size chunkSizeExe(chunkSize);
+    std::size_t idx = 0, lastIdx = 0;
     double futureProductionTime = 0.;
     double eventProcessingTime = 0.;
     while (idx < nTotalEvents)
     {
+        // Wait for the results of the previous batch, in-order, in another thread
+        hpx::future<double> f_done = hpx::async([idx, lastIdx, &f_allQuadruplets, &nFoundQuadruplets, &clock]() {
+            auto const start_time = clock.now();
+            for (std::size_t i = lastIdx ; i < idx ; ++i) {
+                nFoundQuadruplets[i] = f_allQuadruplets[i].get().size();
+            }
+            auto const end_time = clock.now();
+            return std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.;
+        });
+
+        // Send the next batch of futures
         const std::size_t nextBatchIdx = std::min(idx + batchSize, nTotalEvents);
-        // Send futures
-        auto start_time = clock.now();
+        auto const start_time = clock.now();
         hpx::parallel::for_loop(hpx::parallel::par.with(chunkSizeExe), idx, nextBatchIdx, [&](std::size_t i) {
         // for (std::size_t i = idx ; i < nextBatchIdx ; ++i) {
             const auto &ca = cellularAutomatons[i % nGPUs];
             const auto &evt = events[i % nEvents];
             f_allQuadruplets[i] = hpx::async(ca_action, ca, evt);
         });
-        auto end_time = clock.now();
-        futureProductionTime +=
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count()
-            / 1000.;
         // }
-        // Wait for the results in-order
-        for (std::size_t i = idx ; i < nextBatchIdx ; ++i) {
-            nFoundQuadruplets[i] = f_allQuadruplets[i].get().size();
-        }
-        end_time = clock.now();
-        eventProcessingTime +=
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count()
-            / 1000.;
+        auto const end_time = clock.now();
+        futureProductionTime +=
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.;
 
+        eventProcessingTime += f_done.get(); // Synchronize
+        lastIdx = idx;
         idx = nextBatchIdx;
     }
 
