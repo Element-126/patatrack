@@ -16,6 +16,18 @@ HPX_REGISTER_ACTION(CUDACellularAutomaton_run_action);
 
 constexpr auto ok = "\033[1;32mOK\033[0m";
 constexpr auto warning = "\033[1;33mwarning:\033[0m ";
+constexpr auto failed = "\033[1;31mFAILED!\033[0m";
+
+void debugSynchronizeAndCheck(cudaStream_t stream)
+{
+#ifdef DEBUG
+    cudaStreamSynchronize(stream);
+    auto const err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        HPX_THROW_EXCEPTION(hpx::no_success, (cudaGetErrorName(err)), (cudaGetErrorString(err)));
+    }
+#endif
+}
 
 CUDACellularAutomaton::CUDACellularAutomaton(
     unsigned int maxNumberOfQuadruplets,
@@ -66,7 +78,9 @@ CUDACellularAutomaton::CUDACellularAutomaton(
     d_foundNtuplets(nStreams, nullptr)
 {
     // Set GPU
+    // hpx::cerr << "Setting device " << gpuIndex << "... " << hpx::flush;
     cudaSetDevice(gpuIndex);
+    // hpx::cerr << ok << hpx::endl << hpx::flush;
 
     // Allocate resources, or throw exception on failure
     if (!allocateHostMemory()) {
@@ -449,14 +463,17 @@ bool CUDACellularAutomaton::createCUDAStreams()
     assert(streams.size() == 0);
     streams.reserve(nStreams);
     for (unsigned int i = 0 ; i < nStreams ; ++i) {
+        // hpx::cerr << "Creating CUDA stream " << i << "... " << hpx::flush;
         streams.push_back(nullptr);
         auto err = cudaStreamCreate(&streams[i]);
         if (err != cudaSuccess) {
             // The last stream is not valid -> don't destroy it
             streams.pop_back();
+            // hpx::cerr << failed << hpx::endl << hpx::flush;
             destroyCUDAStreams();
             return false;
         }
+        // hpx::cerr << ok << hpx::endl << hpx::flush;
     }
     assert(streams.size() == nStreams);
     // Crete streamInfo
@@ -535,11 +552,14 @@ CUDACellularAutomaton::run(
     auto f_streamIndex = streamQueue.get();
     const unsigned int streamIndex = f_streamIndex.get();
     //std::cerr << ok << "(allocated stream #" << streamIndex << ")" << std::endl;
+    cudaSetDevice(gpuIndex);
+    debugSynchronizeAndCheck(streams[streamIndex]);
 
     // Asynchronously copy data to the GPU
     //std::cerr << "Launching asynchronous copy to GPU... ";
     asyncCopyEventToGPU(bufferIndex, streamIndex);
     //std::cerr << ok << std::endl;
+    debugSynchronizeAndCheck(streams[streamIndex]);
 
     // Set stream info (data member passed to callbacks)
     std::get<2>(streamInfo[streamIndex]) = bufferIndex;
@@ -586,6 +606,7 @@ CUDACellularAutomaton::run(
         maxNumberOfDoublets,
         maxNumberOfHits
     );
+    debugSynchronizeAndCheck(streams[streamIndex]);
     //std::cerr << ok << std::endl;
     // std::cerr << "Kernel: debug()... ";
     // kernel::debug::all(
@@ -617,6 +638,7 @@ CUDACellularAutomaton::run(
         maxNumberOfDoublets,
         maxNumberOfHits
     );
+    debugSynchronizeAndCheck(streams[streamIndex]);
     //std::cerr << ok << std::endl;
     // std::cerr << "Kernel: debug_connect()... ";
     // kernel::debug::connect(
@@ -643,6 +665,7 @@ CUDACellularAutomaton::run(
         minHitsPerNtuplet,
         maxNumberOfDoublets
     );
+    debugSynchronizeAndCheck(streams[streamIndex]);
     //std::cerr << ok << std::endl;
     // std::cerr << "Kernel: debug_find_ntuplets()... ";
     // kernel::debug::find_ntuplets(
@@ -661,11 +684,13 @@ CUDACellularAutomaton::run(
     //std::cerr << "Starting asynchronous copy of the results to the host... ";
     asyncCopyResultsToHost(streamIndex, bufferIndex);
     //std::cerr << ok << std::endl;
+    debugSynchronizeAndCheck(streams[streamIndex]);
 
     // Reset the CA by setting the GPU buffer to clean state
     //std::cerr << "Enqueuing asynchronous CA reset... ";
     asyncResetCAState(streamIndex);
     //std::cerr << ok << std::endl;
+    debugSynchronizeAndCheck(streams[streamIndex]);
 
     // Suspend thread and resume it with callback
 
@@ -680,11 +705,13 @@ CUDACellularAutomaton::run(
     f_done.get();
 
     // Give back the buffers and the stream
-    const std::size_t n_found_quad = h_foundNtuplets[bufferIndex]->m_size;
+    // const std::size_t n_found_quad = h_foundNtuplets[bufferIndex]->m_size;
     //std::cerr << "Copying " << n_found_quad << " quadruplets to vector...";
     auto quadruplets = makeQuadrupletVector(bufferIndex);
     //std::cerr << ok << std::endl;
     // hpx::cerr << "Copied " << quadruplets.size() << " quadruplets to vector." << std::endl << std::flush;
+
+    debugSynchronizeAndCheck(streams[streamIndex]);
 
     //std::cerr << "Relinquishing buffer " << bufferIndex << "... ";
     resourceQueue.set(bufferIndex);
