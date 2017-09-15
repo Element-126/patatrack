@@ -7,7 +7,7 @@
 #include <hpx/parallel/executors.hpp>
 #include <hpx/parallel/executors/parallel_executor.hpp>
 #include <hpx/parallel/executors/static_chunk_size.hpp>
-#include <hpx/parallel/executors/guided_chunk_size.hpp>
+#include <hpx/lcos/local/spinlock.hpp>
 
 #include <boost/program_options.hpp>
 #include <boost/algorithm/string.hpp>
@@ -54,7 +54,8 @@ int hpx_main(po::variables_map& vm)
                    [](std::string const& str) -> std::size_t { return std::stoi(str); });
     const std::size_t nGPUs = gpuIndices.size();
     const std::size_t batchSize = vm["batch-size"].as<std::size_t>();
-    const std::size_t chunkSize = vm["chunk-size"].as<std::size_t>();
+    assert(batchSize > 0);
+    // const std::size_t chunkSize = vm["chunk-size"].as<std::size_t>();
 
     // Parse input file
     std::vector<Host::Event> events;
@@ -102,68 +103,81 @@ int hpx_main(po::variables_map& vm)
     }
 
     using QuadrupletVector = std::vector<Host::Quadruplet>;
-    CUDACellularAutomaton_run_action ca_action;
     std::vector<hpx::future<QuadrupletVector>> f_allQuadruplets(nTotalEvents);
     std::vector<std::size_t> nFoundQuadruplets(nTotalEvents, 0);
 
-    // Fixed chunk size
-    // hpx::parallel::static_chunk_size chunkSizeExe(chunkSize);
-    // Automatic, but with a minimum chunk size
-    hpx::parallel::guided_chunk_size chunkSizeExe(chunkSize);
-
     // Time measurement
     std::chrono::high_resolution_clock clock;
-    double futureProductionTime = 0.;
-    double futureRetrievalTime = 0.;
-    std::vector<double> timings(batchSize, 0);
-    std::vector<std::size_t> counts(batchSize, 0);
     auto const global_start_time = clock.now();
 
-    std::size_t idx = 0, lastIdx = 0;
-    while (lastIdx < nTotalEvents)
+    std::size_t idx(0);
+    using mutex_t = hpx::lcos::local::spinlock;
+    mutex_t mtx_idx;
+    hpx::parallel::static_chunk_size onePerThread(1);
+    hpx::parallel::for_loop(hpx::parallel::par.with(onePerThread), 0, nGPUs,
+        [&idx, &mtx_idx, &f_allQuadruplets, &nFoundQuadruplets, nTotalEvents,
+         &events, nEvents, &cellularAutomatons, batchSize]
+        (std::size_t caIndex) -> void
     {
-        // Wait for the results of the previous batch, in-order, in another thread
-        hpx::future<double> f_done = hpx::async([idx, lastIdx, &f_allQuadruplets, &nFoundQuadruplets, &clock, &timings, &counts]() {
-            auto const start_time = clock.now();
-            auto partial_time = clock.now();
-            const std::size_t batchSize = timings.size();
-            for (std::size_t i = lastIdx ; i < idx ; ++i) {
-                auto const last = partial_time;
-                nFoundQuadruplets[i] = f_allQuadruplets[i].get().size();
-                partial_time = clock.now();
-                const std::size_t j = i % batchSize;
-                timings[j] += std::chrono::duration_cast<std::chrono::milliseconds>(partial_time - last).count();
-                ++counts[j];
+        // Select CA
+        auto &myCA = cellularAutomatons[caIndex];
+        CUDACellularAutomaton_run_action ca_action;
+
+        // Loop until all batches have been processed
+        bool finished = false;
+        std::size_t rg_start(0), rg_end(0);
+        while (!finished) {
+
+            // Asynchronously retreive the results from the previous batch
+            assert(rg_start <= rg_end);
+            assert(rg_end <= nTotalEvents);
+            hpx::future<void> f_done = hpx::async(
+                [rg_start, rg_end, &f_allQuadruplets, &nFoundQuadruplets]() -> void {
+
+                for (std::size_t i = rg_start ; i < rg_end ; ++i) {
+                    nFoundQuadruplets[i] = f_allQuadruplets[i].get().size();
+                }
+            });
+
+            // Increase the index to take ownership of a range of events
+            {
+                std::lock_guard<mutex_t> l(mtx_idx);
+                if (idx >= nTotalEvents) {
+                    finished = true;
+                    rg_start = rg_end = nTotalEvents;
+                    assert(idx == nTotalEvents);
+                } else {
+                    rg_start = idx;
+                    rg_end = idx += batchSize;
+                    // rg_end = idx += (batchSize - 1) * (nTotalEvents - rg_start) / nTotalEvents + 1;
+                    rg_end = std::min(rg_end, nTotalEvents);
+                }
+            } // mtx_idx unlocked
+#if defined(DEBUG)
+            if (finished) {
+                hpx::cerr << "CA" << caIndex << " finished" << hpx::endl << hpx::flush;
+            } else {
+                hpx::cerr << "CA" << caIndex << ": " << rg_start << " -- " << rg_end << hpx::endl << hpx::flush;
             }
-            auto const end_time = clock.now();
-            return std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.;
-        });
+#endif // DEBUG
 
-        // Send the next batch of futures
-        const std::size_t nextBatchIdx = std::min(idx + batchSize, nTotalEvents);
-        auto const start_time = clock.now();
-        hpx::parallel::for_loop(hpx::parallel::par.with(chunkSizeExe), idx, nextBatchIdx, [&](std::size_t i) {
-        // for (std::size_t i = idx ; i < nextBatchIdx ; ++i) {
-            const auto &ca = cellularAutomatons[i % nGPUs];
-            const auto &evt = events[i % nEvents];
-            f_allQuadruplets[i] = hpx::async(ca_action, ca, evt);
-        });
-        // }
-        auto const end_time = clock.now();
-        futureProductionTime +=
-            std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.;
+            // Send events to CA worker
+            assert(rg_start <= rg_end);
+            assert(rg_end <= nTotalEvents);
+            for (std::size_t i = rg_start ; i < rg_end ; ++i) {
+                assert(!finished);
+                const auto &evt = events[i % nEvents];
+                f_allQuadruplets[i] = hpx::async(ca_action, myCA, evt);
+            }
 
-        futureRetrievalTime += f_done.get(); // Synchronize
-        lastIdx = idx;
-        idx = nextBatchIdx;
-    }
+            // Synchronize
+            f_done.get();
+        }
+    });
+
     auto const global_end_time = clock.now();
     const double eventProcessingTime =
         std::chrono::duration_cast<std::chrono::milliseconds>(global_end_time - global_start_time).count() / 1000.;
-
-    for (std::size_t i = 0 ; i < batchSize ; ++i) {
-        timings[i] /= static_cast<double>(counts[i]);
-    }
 
     hpx::cout << hpx::flush;
     // hpx::cout << "All received batches:" << std::endl << hpx::flush;
@@ -179,17 +193,7 @@ int hpx_main(po::variables_map& vm)
     //     }
     // }
     hpx::cout << "Processed " << nTotalEvents << " events" << hpx::endl << hpx::flush;
-    hpx::cerr << "Future production rate: " << nTotalEvents / futureProductionTime << " Hz" << hpx::endl << hpx::flush;
-    hpx::cerr << "Future retrieval rate: " << nTotalEvents / futureRetrievalTime << " Hz" << hpx::endl << hpx::flush;
     hpx::cerr << "Overall event processing rate: " << nTotalEvents / eventProcessingTime << " Hz" << hpx::endl << hpx::flush;
-
-    {
-        std::ofstream timings_file("timings.dat");
-        assert(timings.size() > 0);
-        for (auto const &timing: timings) {
-            timings_file << timing << std::endl;
-        }
-    }
 
     // Finalize HPX runtime
     return hpx::finalize();
