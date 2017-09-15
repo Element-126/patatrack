@@ -1,6 +1,7 @@
 CXX = g++
-# CXXFLAGS = -g -Wall -Wno-unused-local-typedefs -Og -pipe -std=c++17
+# CXXFLAGS = -g3 -Wall -Wno-unused-local-typedefs -Og -pipe -std=c++17 -DDEBUG
 CXXFLAGS = -Wall -Wno-unused-local-typedefs -O3 -pipe -std=c++17
+# CXXFLAGS = -Wall -Wno-unused-local-typedefs -O3 -pipe -std=c++17 -DNDEBUG
 HPXAPPFLAGS = `pkg-config --cflags hpx_application`
 HPXAPPLIBS = `pkg-config --libs hpx_application` -lhpx_iostreams
 HPXCMPFLAGS = `pkg-config --cflags hpx_component`

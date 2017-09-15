@@ -414,7 +414,7 @@ bool CUDACellularAutomaton::allocateDeviceMemory()
             assert(d_foundNtuplets[i]);
             for (unsigned int j = 0 ; j < maxNumberOfLayers ; ++j) {
                 for (unsigned int k = 0 ; k < maxNumberOfHits ; ++k) {
-                    const unsigned int idx = j * maxNumberOfHits + k;
+                    [[maybe_unused]] const unsigned int idx = j * maxNumberOfHits + k;
                     assert(tmp_isOuterHitOfCell[i][idx].m_data);
                 }
             }
