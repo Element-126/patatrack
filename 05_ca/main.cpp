@@ -148,9 +148,10 @@ int hpx_main(po::variables_map& vm)
                     assert(idx == nTotalEvents);
                 } else {
                     rg_start = idx;
-                    rg_end = idx += batchSize;
-                    // rg_end = idx += (batchSize - 1) * (nTotalEvents - rg_start) / nTotalEvents + 1;
+                    rg_end = rg_start + batchSize;
+                    // rg_end = rg_start + (batchSize - 1) * (nTotalEvents - rg_start) / nTotalEvents + 1;
                     rg_end = std::min(rg_end, nTotalEvents);
+                    idx = rg_end;
                 }
             } // mtx_idx unlocked
 #if defined(DEBUG)
