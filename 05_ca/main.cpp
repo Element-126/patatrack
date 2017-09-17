@@ -55,7 +55,7 @@ int hpx_main(po::variables_map& vm)
     const std::size_t nGPUs = gpuIndices.size();
     const std::size_t batchSize = vm["batch-size"].as<std::size_t>();
     assert(batchSize > 0);
-    // const std::size_t chunkSize = vm["chunk-size"].as<std::size_t>();
+    const std::size_t sendersPerCA = vm["senders-per-ca"].as<std::size_t>();
 
     // Parse input file
     std::vector<Host::Event> events;
@@ -114,13 +114,13 @@ int hpx_main(po::variables_map& vm)
     using mutex_t = hpx::lcos::local::spinlock;
     mutex_t mtx_idx;
     hpx::parallel::static_chunk_size onePerThread(1);
-    hpx::parallel::for_loop(hpx::parallel::par.with(onePerThread), 0, nGPUs,
+    hpx::parallel::for_loop(hpx::parallel::par.with(onePerThread), 0, nGPUs * sendersPerCA,
         [&idx, &mtx_idx, &f_allQuadruplets, &nFoundQuadruplets, nTotalEvents,
          &events, nEvents, &cellularAutomatons, batchSize]
         (std::size_t caIndex) -> void
     {
         // Select CA
-        auto &myCA = cellularAutomatons[caIndex];
+        auto &myCA = cellularAutomatons[caIndex % cellularAutomatons.size()];
         CUDACellularAutomaton_run_action ca_action;
 
         // Loop until all batches have been processed
@@ -243,9 +243,9 @@ int main(int argc, char* argv[])
         ("batch-size,z",
          po::value<std::size_t>()->default_value(100),
          "Number of futures scheduled simultaneously")
-        ("chunk-size,k",
-         po::value<std::size_t>()->default_value(10),
-         "Chunk size for parallel future production");
+        ("senders-per-ca,m",
+         po::value<std::size_t>()->default_value(1),
+         "Number of threads sending events to each CA worker");
 
     po::variables_map vm;
     po::store(
