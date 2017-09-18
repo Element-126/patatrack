@@ -515,15 +515,11 @@ void CUDACellularAutomaton::createChannels()
 void CUDACellularAutomaton::destroyChannels()
 {
     //std::cerr << "Destroying stream queue... ";
-    for (unsigned int i = 0 ; i < nStreams ; ++i) {
-        streamQueue.get(hpx::launch::sync);
-    }
+    streamQueue.close(true);
     //std::cerr << ok << std::endl;
 
     //std::cerr << "Destroying buffer queue... ";
-    for (unsigned int i = 0 ; i < eventQueueSize ; ++i) {
-        resourceQueue.get(hpx::launch::sync);
-    }
+    resourceQueue.close(true);
     //std::cerr << ok << std::endl;
 
     // kernelsDone does not need any specific finalization step
