@@ -561,7 +561,9 @@ CUDACellularAutomaton::run(
     std::get<2>(streamInfo[streamIndex]) = bufferIndex;
 
     // Define grid and block sizes
-    const std::array<unsigned int, 3> blockSize{256, 1, 1};
+    const std::array<unsigned int, 3> blockSize_create{32, 1, 1};
+    const std::array<unsigned int, 3> blockSize_connect{512, 1, 1};
+    const std::array<unsigned int, 3> blockSize_find{1024, 1, 1};
     const std::array<unsigned int, 3> numberOfBlocks_create{
         32, h_events[bufferIndex].numberOfLayerPairs, 1
     };
@@ -591,7 +593,7 @@ CUDACellularAutomaton::run(
     // std::cerr << ok << std::endl;
     //std::cerr << "Kernel: create()... ";
     kernel::create(
-        numberOfBlocks_create, blockSize, 0, streams[streamIndex],
+        numberOfBlocks_create, blockSize_create, 0, streams[streamIndex],
         &d_events[streamIndex],
         &d_doublets[d_firstLayerPairInEvt],
         &d_layers[d_firstLayerInEvt],
@@ -622,7 +624,7 @@ CUDACellularAutomaton::run(
 
     //std::cerr << "Kernel: connect()... ";
     kernel::connect(
-        numberOfBlocks_connect, blockSize, 0, streams[streamIndex],
+        numberOfBlocks_connect, blockSize_connect, 0, streams[streamIndex],
         &d_events[streamIndex],
         &d_doublets[d_firstLayerPairInEvt],
         &device_theCells[d_firstDoubletInEvent],
@@ -652,7 +654,7 @@ CUDACellularAutomaton::run(
     //std::cerr << "Kernel: find_ntuplets()... ";
     constexpr unsigned int minHitsPerNtuplet = 4; // We want quadruplets -> 4
     kernel::find_ntuplets(
-        numberOfBlocks_find, blockSize, 0, streams[streamIndex],
+        numberOfBlocks_find, blockSize_find, 0, streams[streamIndex],
         &d_events[streamIndex],
         &d_doublets[d_firstLayerPairInEvt],
         &device_theCells[d_firstDoubletInEvent],
